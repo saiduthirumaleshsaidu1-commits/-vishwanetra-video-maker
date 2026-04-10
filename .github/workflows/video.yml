@@ -1,0 +1,23 @@
+name: Generate Vishwanetra Video
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Install Tools
+        run: |
+          pip install moviepy
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Create Video
+        run: python make_video.py
+      - name: Save Result
+        uses: actions/upload-artifact@v3
+        with:
+          name: vishwanetra-video
+          path: vishwanetra_video.mp4
