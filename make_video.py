@@ -2,11 +2,12 @@ import os
 from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips
 
 def generate_video():
-    # అన్ని .jpg ఫైళ్లను తీసుకోవడం
-    images = sorted([img for img in os.listdir() if img.endswith(".jpg")])
-    
+    # .jpg లేదా .png ఫైళ్లను వెతకడం
+    images = [img for img in os.listdir() if img.endswith(('.jpg', '.png', '.jpeg'))]
+    images.sort()
+
     if not images or not os.path.exists("audio.mp3"):
-        print("Error: ఫోటోలు (image.jpg) లేదా ఆడియో (audio.mp3) దొరకలేదు!")
+        print("Error: Files not found! Please check image and audio.mp3 names.")
         return
 
     audio = AudioFileClip("audio.mp3")
@@ -17,7 +18,7 @@ def generate_video():
     final_video = final_video.set_audio(audio)
     
     final_video.write_videofile("vishwanetra_video.mp4", fps=24, codec="libx264")
-    print("వీడియో సిద్ధమైంది!")
+    print("Success: Video Created!")
 
 if __name__ == "__main__":
     generate_video()
