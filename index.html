@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="te">
+<head>
+    <meta charset="UTF-8">
+    <title>STGV Tech Video Maker Max</title>
+    <style>
+        body { background: #000; color: #0ff; font-family: 'Segoe UI', sans-serif; text-align: center; margin: 0; }
+        #canvas-container { position: relative; display: inline-block; margin: 20px auto; }
+        canvas { background: #000; display: block; border: 2px solid #0ff; box-shadow: 0 0 20px #0ff; width: 90%; max-width: 1000px; }
+        textarea { width: 80%; height: 60px; background: #111; color: #fff; border: 1px solid #0ff; padding: 10px; border-radius: 5px; }
+        button { padding: 15px 30px; background: #00ffff; color: #000; font-weight: bold; border: none; cursor: pointer; border-radius: 5px; margin-top: 10px; transition: 0.3s; }
+        button:hover { background: #00cccc; box-shadow: 0 0 15px #00ffff; }
+        #status { color: #0ff; margin-top: 10px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h2>STGV హై-టెక్ వీడియో మేకర్ (Max Graphics)</h2>
+    <textarea id="videoText">నమస్కారం! STGV భవిష్యవాణికి స్వాగతం. ఈరోజు మనం AI గురించి తెలుసుకుందాం...</textarea><br>
+    <div id="canvas-container">
+        <canvas id="videoCanvas" width="1280" height="720"></canvas>
+    </div>
+    <div class="controls"><button onclick="startProduction()">హై-టెక్ వీడియో జనరేట్ చేయి</button></div>
+    <div id="status">Ready</div>
+
+    <audio id="bgMusic" src="music.mp3" loop></audio>
+
+    <script>
+        const canvas = document.getElementById('videoCanvas');
+        const ctx = canvas.getContext('2d');
+        const audio = document.getElementById('bgMusic');
+        const status = document.getElementById('status');
+        const textArea = document.getElementById('videoText');
+
+        // చిత్రాలు లోడ్ చేయడం
+        const logo = new Image(); logo.src = 'logo.png';
+        const bgImg = new Image(); bgImg.src = 'bg.jpg'; // బ్యాక్‌గ్రౌండ్ కోసం ఫోటో
+
+        // గ్రాఫిక్స్ కోసం పార్టికల్స్
+        let particles = [];
+        for(let i=0; i<100; i++) {
+            particles.push({ x: Math.random()*canvas.width, y: Math.random()*canvas.height, s: Math.random()*3, vx: Math.random()*2 - 1, vy: Math.random()*2 - 1 });
+        }
+
+        let currentText = "";
+        let charIndex = 0;
+        let chunks = [];
+        let gridY = 0; // యానిమేటెడ్ గ్రిడ్ కోసం
+
+        function drawScene() {
+            // 1. బ్యాక్‌గ్రౌండ్ ఫోటో లేదా కలర్
+            if (bgImg.complete && bgImg.naturalWidth !== 0) {
+                ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "rgba(0, 0, 0, 0.7)"; // ఫోటో పైన నలుపు పొర
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            } else {
+                ctx.fillStyle = "#00050a";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            // 2. యానిమేటెడ్ సైబర్ గ్రిడ్
+            ctx.strokeStyle = "rgba(0, 255, 255, 0.1)";
+            ctx.lineWidth = 1;
+            for(let i=0; i<canvas.width; i+=80) { ctx.strokeRect(i, 0, 80, canvas.height); }
+            ctx.strokeStyle = "rgba(0, 255, 255, 0.2)";
+            ctx.beginPath();
+            ctx.moveTo(0, gridY); ctx.lineTo(canvas.width, gridY);
+            ctx.stroke();
+            gridY = (gridY + 2) % canvas.height;
+
+            // 3. హై-టెక్ గ్రాఫిక్స్ (Moving Particles & Lines)
+            ctx.fillStyle = "rgba(0, 255, 255, 0.7)";
+            ctx.strokeStyle = "rgba(0, 255, 255, 0.3)";
+            for(let i=0; i<particles.length; i++) {
+                let p = particles[i];
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.s, 0, Math.PI*2); ctx.fill();
+                p.x += p.vx; p.y += p.vy;
+                if(p.x < 0 || p.x > canvas.width) p.vx *= -1;
+                if(p.y < 0 || p.y > canvas.height) p.vy *= -1;
+                
+                // లైన్లు కలుపుట
+                for(let j=i+1; j<particles.length; j++) {
+                    let p2 = particles[j];
+                    let dist = Math.sqrt(Math.pow(p.x-p2.x, 2) + Math.pow(p.y-p2.y, 2));
+                    if(dist < 100) {
+                        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+                    }
+                }
+            }
+
+            // 4. లోగో (కుడివైపు పైన)
+            if (logo.complete && logo.naturalWidth !== 0) {
+                ctx.shadowColor = "rgba(0, 0, 0, 0.8)"; // లోగో షాడో
+                ctx.shadowBlur = 15;
+                ctx.drawImage(logo, canvas.width - 160, 40, 120, 120);
+                ctx.shadowBlur = 0; // షాడో ఆపివేయుట
+            }
+
+            // 5. టెక్స్ట్ డిజైన్
+            ctx.font = "bold 45px 'Segoe UI'";
+            ctx.textAlign = "center";
+            
+            // టెక్స్ట్ బ్యాక్‌గ్రౌండ్ బాక్స్ (సైబర్ స్టైల్)
+            ctx.fillStyle = "rgba(0, 20, 40, 0.8)";
+            ctx.fillRect(100, canvas.height - 220, canvas.width - 200, 140);
+            ctx.strokeStyle = "#0ff"; ctx.lineWidth = 2;
+            ctx.strokeRect(100, canvas.height - 220, canvas.width - 200, 140);
+            ctx.fillStyle = "#0ff"; ctx.fillRect(100, canvas.height - 220, 10, 140); // ఎడమవైపు లైన్
+
+            ctx.fillStyle = "#ffffff";
+            ctx.shadowColor = "#0ff";
+            ctx.shadowBlur = 10;
+            
+            ctx.fillText(currentText, canvas.width/2, canvas.height - 140);
+        }
+
+        function animate(fullText) {
+            if (charIndex <= fullText.length) {
+                currentText = fullText.substring(0, charIndex);
+                charIndex++;
+                setTimeout(() => requestAnimationFrame(() => animate(fullText)), 60);
+            }
+            drawScene();
+        }
+
+        async function startProduction() {
+            const textToSpeak = textArea.value;
+            status.innerText = "వీడియో తయారవుతోంది...";
+            charIndex = 0; chunks = [];
+            
+            // బ్యాక్‌గ్రౌండ్ మ్యూజిక్ ని నియంత్రించుట (Audio Mixing)
+            audio.volume = 0.05; // మ్యూజిక్ వాల్యూమ్ చాలా తక్కువగా
+            audio.play().catch(e => console.log("Music file missing"));
+
+            const videoStream = canvas.captureStream(30);
+            const audioContext = new AudioContext();
+            const dest = audioContext.createMediaStreamDestination();
+            
+            // మ్యూజిక్ సోర్స్ ని మిక్సర్ కి కలపడం
+            try {
+                const musicSource = audioContext.createMediaElementSource(audio);
+                const musicGain = audioContext.createGain();
+                musicGain.gain.value = 0.05; // మ్యూజిక్ వాల్యూమ్ నియంత్రణ
+                musicSource.connect(musicGain);
+                musicGain.connect(dest);
+                musicGain.connect(audioContext.destination);
+            } catch(e) {}
+
+            // వీడియో మరియు ఆడియోని కలపడం
+            const combinedStream = new MediaStream([...videoStream.getVideoTracks(), ...dest.stream.getAudioTracks()]);
+            const recorder = new MediaRecorder(combinedStream, { mimeType: 'video/webm' });
+            recorder.ondataavailable = e => chunks.push(e.data);
+            recorder.onstop = exportVideo;
+
+            // AI వాయిస్ ఓవర్
+            let utterance = new SpeechSynthesisUtterance(textToSpeak);
+            utterance.lang = 'te-IN';
+            utterance.rate = 0.9;
+            utterance.volume = 1.0; // వాయిస్ వాల్యూమ్ గరిష్టంగా
+
+            recorder.start();
+            animate(textToSpeak);
+            window.speechSynthesis.speak(utterance);
+
+            utterance.onend = () => {
+                setTimeout(() => { recorder.stop(); audio.pause(); }, 1500);
+            };
+        }
+
+        function exportVideo() {
+            const blob = new Blob(chunks, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'STGV_Tech_Video_Max.webm'; a.click();
+            status.innerText = "డౌన్లోడ్ అయ్యింది!";
+        }
+
+        setInterval(drawScene, 50);
+    </script>
+</body>
+</html>
