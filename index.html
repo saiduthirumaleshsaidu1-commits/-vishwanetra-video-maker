@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="te">
+<head>
+    <meta charset="UTF-8">
+    <title>STGV Tech Video Pro</title>
+    <style>
+        body { background: #000; color: #0ff; font-family: 'Segoe UI', sans-serif; text-align: center; margin: 0; }
+        #canvas-container { position: relative; display: inline-block; margin: 20px auto; border: 3px solid #0ff; box-shadow: 0 0 30px #0ff; }
+        canvas { background: #000; display: block; width: 90vw; max-width: 1280px; }
+        textarea { width: 80%; height: 80px; background: #111; color: #fff; border: 1px solid #0ff; padding: 10px; margin-top: 20px; font-size: 16px; border-radius: 8px; }
+        .btn-container { margin: 20px; }
+        button { padding: 15px 40px; background: #00ffff; color: #000; font-weight: bold; border: none; cursor: pointer; border-radius: 30px; font-size: 18px; transition: 0.3s; }
+        button:hover { background: #fff; box-shadow: 0 0 20px #fff; }
+        #status { color: #0ff; font-weight: bold; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+
+    <h2 style="text-shadow: 0 0 10px #0ff;">STGV హై-టెక్ వీడియో జనరేటర్</h2>
+    
+    <textarea id="videoText">నమస్కారం! STGV భవిష్యవాణికి స్వాగతం. ఈరోజు మనం ఆర్టిఫిషియల్ ఇంటెలిజెన్స్ మన జీవితాలను ఎలా మార్చబోతుందో తెలుసుకుందాం. మరిన్ని వివరాల కోసం సబ్‌స్క్రైబ్ చేయండి!</textarea>
+
+    <div id="canvas-container">
+        <canvas id="videoCanvas" width="1280" height="720"></canvas>
+    </div>
+
+    <div class="btn-container">
+        <button onclick="startProduction()">వీడియోను తయారు చేయి</button>
+    </div>
+    <div id="status">Ready to Generate</div>
+
+    <audio id="bgMusic" src="music.mp3" loop></audio>
+
+    <script>
+        const canvas = document.getElementById('videoCanvas');
+        const ctx = canvas.getContext('2d');
+        const audio = document.getElementById('bgMusic');
+        const status = document.getElementById('status');
+        const textArea = document.getElementById('videoText');
+
+        const logo = new Image(); logo.src = 'logo.png';
+        const bgImg = new Image(); bgImg.src = 'bg.jpg';
+
+        let particles = [];
+        for(let i=0; i<80; i++) {
+            particles.push({ x: Math.random()*canvas.width, y: Math.random()*canvas.height, s: Math.random()*2, vx: Math.random()*1 - 0.5, vy: Math.random()*1 - 0.5 });
+        }
+
+        let currentText = "";
+        let charIndex = 0;
+        let chunks = [];
+        let gridY = 0;
+
+        function drawScene() {
+            // 1. Background
+            if (bgImg.complete && bgImg.naturalWidth !== 0) {
+                ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            } else {
+                ctx.fillStyle = "#000810";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            // 2. Animated Grid
+            ctx.strokeStyle = "rgba(0, 255, 255, 0.15)";
+            ctx.lineWidth = 1;
+            for(let i=0; i<canvas.width; i+=100) { ctx.strokeRect(i, 0, 100, canvas.height); }
+            gridY = (gridY + 1.5) % canvas.height;
+            ctx.beginPath(); ctx.moveTo(0, gridY); ctx.lineTo(canvas.width, gridY); ctx.stroke();
+
+            // 3. Neural Graphics
+            ctx.fillStyle = "#0ff";
+            ctx.strokeStyle = "rgba(0, 255, 255, 0.2)";
+            particles.forEach((p, i) => {
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.s, 0, Math.PI*2); ctx.fill();
+                p.x += p.vx; p.y += p.vy;
+                if(p.x < 0 || p.x > canvas.width) p.vx *= -1;
+                if(p.y < 0 || p.y > canvas.height) p.vy *= -1;
+            });
+
+            // 4. Logo with Glow
+            if (logo.complete && logo.naturalWidth !== 0) {
+                ctx.shadowColor = "#0ff"; ctx.shadowBlur = 10;
+                ctx.drawImage(logo, canvas.width - 170, 40, 130, 130);
+                ctx.shadowBlur = 0;
+            }
+
+            // 5. Text Box
+            ctx.fillStyle = "rgba(0, 30, 50, 0.85)";
+            ctx.strokeStyle = "#0ff";
+            ctx.lineWidth = 3;
+            ctx.fillRect(100, canvas.height - 230, canvas.width - 200, 150);
+            ctx.strokeRect(100, canvas.height - 230, canvas.width - 200, 150);
+
+            ctx.font = "bold 48px 'Segoe UI', Arial";
+            ctx.textAlign = "center";
+            ctx.fillStyle = "#fff";
+            ctx.shadowColor = "#0ff"; ctx.shadowBlur = 15;
+            ctx.fillText(currentText, canvas.width/2, canvas.height - 140);
+            ctx.shadowBlur = 0;
+        }
+
+        function animate(fullText) {
+            if (charIndex <= fullText.length) {
+                currentText = fullText.substring(0, charIndex);
+                charIndex++;
+                setTimeout(() => requestAnimationFrame(() => animate(fullText)), 70);
+            }
+            drawScene();
+        }
+
+        async function startProduction() {
+            const textToSpeak = textArea.value;
+            status.innerText = "వీడియో తయారవుతోంది... వాయిస్ ప్లే అవుతోంది...";
+            charIndex = 0; chunks = [];
+
+            // Audio Setup
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const dest = audioCtx.createMediaStreamDestination();
+
+            // Music Mixing
+            audio.volume = 0.05;
+            try {
+                const source = audioCtx.createMediaElementSource(audio);
+                const gain = audioCtx.createGain();
+                gain.gain.value = 0.05;
+                source.connect(gain);
+                gain.connect(dest);
+                gain.connect(audioCtx.destination);
+                audio.play();
+            } catch(e) {}
+
+            const videoStream = canvas.captureStream(30);
+            const combined = new MediaStream([...videoStream.getVideoTracks(), ...dest.stream.getAudioTracks()]);
+            const recorder = new MediaRecorder(combined, { mimeType: 'video/webm' });
+
+            recorder.ondataavailable = e => chunks.push(e.data);
+            recorder.onstop = exportVideo;
+
+            // Speech AI
+            const utterance = new SpeechSynthesisUtterance(textToSpeak);
+            utterance.lang = 'te-IN';
+            utterance.rate = 0.85;
+
+            recorder.start();
+            animate(textToSpeak);
+            window.speechSynthesis.speak(utterance);
+
+            utterance.onend = () => {
+                setTimeout(() => {
+                    recorder.stop();
+                    audio.pause();
+                    status.innerText = "వీడియో డౌన్లోడ్ అయ్యింది!";
+                }, 1500);
+            };
+        }
+
+        function exportVideo() {
+            const blob = new Blob(chunks, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'STGV_Tech_Video_Final.webm'; a.click();
+        }
+
+        setInterval(drawScene, 40);
+    </script>
+</body>
+</html>
