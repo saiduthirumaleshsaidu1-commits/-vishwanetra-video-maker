@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="te">
+<head>
+    <meta charset="UTF-8">
+    <title>STGV Smart Video Maker</title>
+    <style>
+        body { background-color: #050505; color: white; font-family: 'Segoe UI', sans-serif; text-align: center; }
+        #canvas-container { margin-top: 20px; border: 5px solid #111; display: inline-block; box-shadow: 0 0 30px #00ffff33; }
+        canvas { background: #000; display: block; }
+        .controls { margin: 20px; }
+        textarea { width: 80%; height: 60px; background: #111; color: #0ff; border: 1px solid #0ff; padding: 10px; font-size: 16px; border-radius: 5px; }
+        button { padding: 15px 30px; font-weight: bold; cursor: pointer; background: #00ffff; border: none; border-radius: 5px; margin-top: 10px; transition: 0.3s; }
+        button:hover { background: #00cccc; box-shadow: 0 0 15px #00ffff; }
+        #status { margin-top: 10px; color: #00ffff; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h2 style="color: #00ffff; text-shadow: 0 0 10px #00ffff;">STGV ఫ్యూచర్ వీడియో మేకర్</h2>
+    
+    <textarea id="videoText">భవిష్యత్తు సాంకేతికత గురించి తెలుసుకోవడానికి సిద్ధంగా ఉండండి...</textarea><br>
+
+    <div id="canvas-container">
+        <canvas id="videoCanvas" width="1280" height="720"></canvas>
+    </div>
+
+    <div class="controls">
+        <button onclick="startProduction()">వీడియోను తయారు చేయి</button>
+    </div>
+    <div id="status">సిద్ధంగా ఉంది...</div>
+
+    <audio id="bgMusic" src="music.mp3" loop></audio>
+
+    <script>
+        const canvas = document.getElementById('videoCanvas');
+        const ctx = canvas.getContext('2d');
+        const status = document.getElementById('status');
+        const audio = document.getElementById('bgMusic');
+        const textArea = document.getElementById('videoText');
+
+        const logo = new Image();
+        logo.src = 'logo.png'; // మీ రిపోజిటరీలో లోగో ఉంటే కనిపిస్తుంది
+
+        let currentText = "";
+        let charIndex = 0;
+        let chunks = [];
+
+        function drawScene() {
+            ctx.fillStyle = "black";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // లోగో డ్రా చేసే కండిషన్
+            if (logo.complete && logo.naturalWidth !== 0) {
+                ctx.globalAlpha = 0.6;
+                ctx.drawImage(logo, canvas.width - 160, 40, 120, 120);
+                ctx.globalAlpha = 1.0;
+            }
+
+            // నియాన్ గ్రిడ్ బ్యాక్‌గ్రౌండ్
+            ctx.strokeStyle = "rgba(0, 255, 255, 0.08)";
+            for(let i=0; i<canvas.width; i+=100) {
+                ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke();
+            }
+            for(let i=0; i<canvas.height; i+=100) {
+                ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke();
+            }
+
+            // టెక్స్ట్ స్టైల్
+            ctx.font = "bold 50px 'Segoe UI'";
+            ctx.textAlign = "center";
+            ctx.shadowColor = "#00ffff";
+            ctx.shadowBlur = 15;
+            ctx.fillStyle = "#ffffff";
+            
+            ctx.fillText(currentText, canvas.width/2, canvas.height/2);
+            
+            // కర్సర్ బ్లింకింగ్ ఎఫెక్ట్
+            if (Math.floor(Date.now() / 500) % 2) {
+                let m = ctx.measureText(currentText);
+                ctx.fillRect(canvas.width/2 + m.width/2 + 10, canvas.height/2 - 40, 5, 50);
+            }
+        }
+
+        function animate(fullText) {
+            if (charIndex <= fullText.length) {
+                currentText = fullText.substring(0, charIndex);
+                charIndex++;
+                setTimeout(() => requestAnimationFrame(() => animate(fullText)), 80);
+            }
+            drawScene();
+        }
+
+        async function startProduction() {
+            const textToSpeak = textArea.value;
+            status.innerText = "వీడియో తయారవుతోంది...";
+            charIndex = 0;
+            chunks = [];
+            
+            // మ్యూజిక్ ప్లే చేసేటప్పుడు కండిషన్ (ఫైల్ లేకపోయినా ఆగొద్దు)
+            audio.volume = 0.2;
+            audio.play().catch(e => {
+                console.log("గమనిక: బ్యాక్‌గ్రౌండ్ మ్యూజిక్ ఫైల్ అందుబాటులో లేదు.");
+            });
+
+            const videoStream = canvas.captureStream(30);
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const dest = audioContext.createMediaStreamDestination();
+            
+            // ఆడియో మిక్సింగ్ (మ్యూజిక్ ఉంటేనే కలుపుతుంది)
+            try {
+                const source = audioContext.createMediaElementSource(audio);
+                source.connect(dest);
+                source.connect(audioContext.destination);
+            } catch(e) {
+                console.log("ఆడియో సోర్స్ సెటప్ స్కిప్ చేయబడింది.");
+            }
+
+            const combinedStream = new MediaStream([
+                ...videoStream.getVideoTracks(), 
+                ...dest.stream.getAudioTracks()
+            ]);
+
+            const recorder = new MediaRecorder(combinedStream, { mimeType: 'video/webm' });
+            recorder.ondataavailable = e => chunks.push(e.data);
+            recorder.onstop = exportVideo;
+
+            // AI వాయిస్ ఓవర్
+            let utterance = new SpeechSynthesisUtterance(textToSpeak);
+            utterance.lang = 'te-IN';
+            utterance.rate = 0.85;
+
+            recorder.start();
+            animate(textToSpeak);
+            window.speechSynthesis.speak(utterance);
+
+            utterance.onend = () => {
+                setTimeout(() => {
+                    recorder.stop();
+                    audio.pause();
+                    status.innerText = "వీడియో డౌన్లోడ్ అయ్యింది!";
+                }, 1500);
+            };
+        }
+
+        function exportVideo() {
+            const blob = new Blob(chunks, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'STGV_Bhavishyvani_Video.webm';
+            a.click();
+        }
+
+        // నిరంతరం స్క్రీన్ అప్‌డేట్ చేయడం
+        setInterval(drawScene, 50);
+    </script>
+</body>
+</html>
