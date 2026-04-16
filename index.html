@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="te">
+<head>
+    <meta charset="UTF-8">
+    <title>STGV Tech Video Maker Pro</title>
+    <style>
+        body { background: #000; color: #0ff; font-family: 'Segoe UI', sans-serif; text-align: center; margin: 0; }
+        canvas { background: #000; display: block; margin: 20px auto; border: 2px solid #0ff; box-shadow: 0 0 20px #0ff; width: 90%; max-width: 1000px; }
+        textarea { width: 80%; height: 60px; background: #111; color: #fff; border: 1px solid #0ff; padding: 10px; border-radius: 5px; }
+        button { padding: 15px 30px; background: #00ffff; color: #000; font-weight: bold; border: none; cursor: pointer; border-radius: 5px; margin-top: 10px; }
+        #status { color: #0ff; margin-top: 10px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h2>STGV ప్రో టెక్ వీడియో మేకర్</h2>
+    <textarea id="videoText">నమస్కారం! STGV భవిష్యవాణికి స్వాగతం. ఈరోజు మనం AI గురించి తెలుసుకుందాం...</textarea><br>
+    <canvas id="videoCanvas" width="1280" height="720"></canvas>
+    <div class="controls"><button onclick="startProduction()">ప్రో వీడియో జనరేట్ చేయి</button></div>
+    <div id="status">Ready</div>
+
+    <audio id="bgMusic" src="music.mp3" loop></audio>
+
+    <script>
+        const canvas = document.getElementById('videoCanvas');
+        const ctx = canvas.getContext('2d');
+        const audio = document.getElementById('bgMusic');
+        const status = document.getElementById('status');
+        const textArea = document.getElementById('videoText');
+
+        // చిత్రాలు లోడ్ చేయడం
+        const logo = new Image(); logo.src = 'logo.png';
+        const bgImg = new Image(); bgImg.src = 'bg.jpg'; // బ్యాక్‌గ్రౌండ్ కోసం ఫోటో
+
+        let particles = [];
+        for(let i=0; i<50; i++) {
+            particles.push({ x: Math.random()*canvas.width, y: Math.random()*canvas.height, s: Math.random()*2, v: Math.random()*1 });
+        }
+
+        let currentText = "";
+        let charIndex = 0;
+        let chunks = [];
+
+        function drawScene() {
+            // 1. బ్యాక్‌గ్రౌండ్ ఫోటో లేదా కలర్
+            if (bgImg.complete && bgImg.naturalWidth !== 0) {
+                ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "rgba(0, 0, 0, 0.6)"; // ఫోటో పైన నలుపు పొర (టెక్స్ట్ కోసం)
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            } else {
+                ctx.fillStyle = "#00050a";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            // 2. యానిమేటెడ్ గ్రాఫిక్స్ (Moving Particles)
+            ctx.fillStyle = "#00ffff";
+            particles.forEach(p => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.s, 0, Math.PI*2);
+                ctx.fill();
+                p.y -= p.v; if(p.y < 0) p.y = canvas.height;
+            });
+
+            // 3. లోగో
+            if (logo.complete && logo.naturalWidth !== 0) {
+                ctx.drawImage(logo, canvas.width - 150, 30, 100, 100);
+            }
+
+            // 4. టెక్స్ట్ డిజైన్
+            ctx.font = "bold 45px 'Segoe UI'";
+            ctx.textAlign = "center";
+            
+            // టెక్స్ట్ బ్యాక్‌గ్రౌండ్ బాక్స్
+            ctx.fillStyle = "rgba(0, 20, 40, 0.7)";
+            ctx.fillRect(100, canvas.height - 200, canvas.width - 200, 120);
+            ctx.strokeStyle = "#0ff";
+            ctx.strokeRect(100, canvas.height - 200, canvas.width - 200, 120);
+
+            ctx.fillStyle = "#ffffff";
+            ctx.shadowColor = "#0ff";
+            ctx.shadowBlur = 10;
+            
+            // టెక్స్ట్ ని బాక్సులో ఉంచడం
+            ctx.fillText(currentText, canvas.width/2, canvas.height - 125);
+        }
+
+        function animate(fullText) {
+            if (charIndex <= fullText.length) {
+                currentText = fullText.substring(0, charIndex);
+                charIndex++;
+                setTimeout(() => requestAnimationFrame(() => animate(fullText)), 60);
+            }
+            drawScene();
+        }
+
+        async function startProduction() {
+            const textToSpeak = textArea.value;
+            status.innerText = "వీడియో తయారవుతోంది...";
+            charIndex = 0; chunks = [];
+            
+            audio.volume = 0.2;
+            audio.play().catch(e => console.log("Music skip"));
+
+            const videoStream = canvas.captureStream(30);
+            const audioContext = new AudioContext();
+            const dest = audioContext.createMediaStreamDestination();
+            
+            try {
+                const source = audioContext.createMediaElementSource(audio);
+                source.connect(dest);
+            } catch(e) {}
+
+            const combinedStream = new MediaStream([...videoStream.getVideoTracks(), ...dest.stream.getAudioTracks()]);
+            const recorder = new MediaRecorder(combinedStream, { mimeType: 'video/webm' });
+            recorder.ondataavailable = e => chunks.push(e.data);
+            recorder.onstop = exportVideo;
+
+            let utterance = new SpeechSynthesisUtterance(textToSpeak);
+            utterance.lang = 'te-IN';
+            utterance.rate = 0.9;
+
+            recorder.start();
+            animate(textToSpeak);
+            window.speechSynthesis.speak(utterance);
+
+            utterance.onend = () => {
+                setTimeout(() => { recorder.stop(); audio.pause(); }, 1000);
+            };
+        }
+
+        function exportVideo() {
+            const blob = new Blob(chunks, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'STGV_Tech_Video.webm'; a.click();
+            status.innerText = "డౌన్లోడ్ అయ్యింది!";
+        }
+
+        setInterval(drawScene, 50);
+    </script>
+</body>
+</html>
