@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="te">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STGV Mobile Video Creator</title>
+    <style>
+        body { background: #000; color: #0ff; font-family: sans-serif; text-align: center; margin: 0; padding: 10px; }
+        #canvas-container { width: 100%; max-width: 600px; margin: 10px auto; border: 2px solid #0ff; position: relative; overflow: hidden; }
+        canvas { width: 100%; height: auto; display: block; background: #000; }
+        textarea { width: 90%; height: 80px; background: #111; color: #fff; border: 1px solid #0ff; padding: 10px; margin-top: 10px; border-radius: 5px; font-size: 14px; }
+        .controls { margin: 15px; }
+        button { padding: 12px 25px; background: #00ffff; color: #000; font-weight: bold; border: none; cursor: pointer; border-radius: 25px; width: 80%; max-width: 300px; }
+        #status { font-size: 14px; margin-top: 10px; color: #0ff; }
+    </style>
+</head>
+<body>
+
+    <h3 style="margin-bottom: 5px;">STGV మొబైల్ వీడియో ఎడిటర్</h3>
+    <div id="status">Ready</div>
+
+    <div id="canvas-container">
+        <canvas id="videoCanvas" width="1280" height="720"></canvas>
+    </div>
+
+    <textarea id="videoText">నమస్కారం! STGV భవిష్యవాణికి స్వాగతం. ఈరోజు మనం AI గురించి తెలుసుకుందాం...</textarea>
+
+    <div class="controls">
+        <button id="startBtn" onclick="startProduction()">వీడియోను తయారు చేయి</button>
+    </div>
+
+    <audio id="bgMusic" src="music.mp3" loop crossorigin="anonymous"></audio>
+
+    <script>
+        const canvas = document.getElementById('videoCanvas');
+        const ctx = canvas.getContext('2d');
+        const audio = document.getElementById('bgMusic');
+        const status = document.getElementById('status');
+        const textArea = document.getElementById('videoText');
+        const startBtn = document.getElementById('startBtn');
+
+        const logo = new Image(); logo.src = 'logo.png';
+        const bgImg = new Image(); bgImg.src = 'bg.jpg';
+
+        let currentText = "";
+        let charIndex = 0;
+        let chunks = [];
+        let isRecording = false;
+
+        // గ్రాఫిక్స్ కోసం చిన్న వృత్తాలు (మొబైల్ కోసం తక్కువ సంఖ్యలో)
+        let particles = [];
+        for(let i=0; i<40; i++) {
+            particles.push({ x: Math.random()*canvas.width, y: Math.random()*canvas.height, s: Math.random()*3, v: Math.random()*1 + 0.5 });
+        }
+
+        function draw() {
+            // 1. బ్యాక్‌గ్రౌండ్
+            if (bgImg.complete && bgImg.naturalWidth !== 0) {
+                ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            } else {
+                ctx.fillStyle = "#000b14";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            // 2. తేలికపాటి గ్రాఫిక్స్
+            ctx.fillStyle = "rgba(0, 255, 255, 0.5)";
+            particles.forEach(p => {
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.s, 0, Math.PI*2); ctx.fill();
+                p.y -= p.v; if(p.y < 0) p.y = canvas.height;
+            });
+
+            // 3. లోగో
+            if (logo.complete && logo.naturalWidth !== 0) {
+                ctx.drawImage(logo, canvas.width - 150, 30, 110, 110);
+            }
+
+            // 4. టెక్స్ట్ బాక్స్
+            ctx.fillStyle = "rgba(0, 20, 40, 0.85)";
+            ctx.strokeStyle = "#0ff";
+            ctx.lineWidth = 4;
+            ctx.strokeRect(80, canvas.height - 220, canvas.width - 160, 140);
+            ctx.fillRect(80, canvas.height - 220, canvas.width - 160, 140);
+
+            // 5. తెలుగు టెక్స్ట్
+            ctx.fillStyle = "white";
+            ctx.font = "bold 45px Arial";
+            ctx.textAlign = "center";
+            ctx.fillText(currentText, canvas.width/2, canvas.height - 135);
+
+            if(!isRecording) requestAnimationFrame(draw);
+        }
+
+        function animateText(fullText) {
+            if (charIndex <= fullText.length) {
+                currentText = fullText.substring(0, charIndex);
+                charIndex++;
+                setTimeout(() => draw(), 50);
+                setTimeout(() => animateText(fullText), 70);
+            }
+        }
+
+        async function startProduction() {
+            if (isRecording) return;
+            isRecording = true;
+            startBtn.disabled = true;
+            status.innerText = "ప్రాసెస్ అవుతోంది... దయచేసి ఆగండి";
+
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const dest = audioCtx.createMediaStreamDestination();
+
+            // మ్యూజిక్ మిక్సింగ్
+            audio.volume = 0.05;
+            try {
+                const source = audioCtx.createMediaElementSource(audio);
+                const gain = audioCtx.createGain();
+                gain.gain.value = 0.05;
+                source.connect(gain);
+                gain.connect(dest);
+                gain.connect(audioCtx.destination);
+                audio.play();
+            } catch(e) { console.log("Audio Error"); }
+
+            // వీడియో రికార్డింగ్ సెటప్
+            const videoStream = canvas.captureStream(25); // మొబైల్ కోసం 25 FPS చాలు
+            const combined = new MediaStream([...videoStream.getVideoTracks(), ...dest.stream.getAudioTracks()]);
+            
+            // మొబైల్ సపోర్ట్ చేసే కోడెక్స్
+            let options = { mimeType: 'video/webm;codecs=vp8' };
+            if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                options = { mimeType: 'video/webm' };
+            }
+            
+            const recorder = new MediaRecorder(combined, options);
+            chunks = [];
+
+            recorder.ondataavailable = e => chunks.push(e.data);
+            recorder.onstop = () => {
+                const blob = new Blob(chunks, { type: 'video/webm' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'STGV_Mobile_Video.webm';
+                a.click();
+                status.innerText = "డౌన్లోడ్ పూర్తయింది!";
+                isRecording = false;
+                startBtn.disabled = false;
+                draw(); // యానిమేషన్ రీస్టార్ట్
+            };
+
+            const utterance = new SpeechSynthesisUtterance(textArea.value);
+            utterance.lang = 'te-IN';
+            utterance.rate = 0.9;
+
+            recorder.start();
+            charIndex = 0;
+            animateText(textArea.value);
+            window.speechSynthesis.speak(utterance);
+
+            utterance.onend = () => {
+                setTimeout(() => recorder.stop(), 1500);
+                audio.pause();
+            };
+        }
+
+        draw(); // స్టార్టప్ డ్రా
+    </script>
+</body>
+</html>
